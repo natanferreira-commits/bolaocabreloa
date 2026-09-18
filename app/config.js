@@ -11,10 +11,11 @@ export const config = {
   resgate: {
     modo: "form-telegram",
 
-    // >>> Link do bot/fluxo no Telegram. {codigo} vira o número do bilhete. <<<
-    // Com bot, use o deep link: "https://t.me/SEU_BOT?start={codigo}" (o bot recebe "/start CODIGO").
-    // ESTÁ COM PLACEHOLDER, trocar antes de divulgar.
-    telegramUrl: "https://t.me/SEU_BOT?start={codigo}",
+    // >>> Link do bot/fluxo no Telegram <<<
+    // O "start=" abaixo é o ID do fluxo do bot (SendPulse), por isso o nº do bilhete NÃO vai no link.
+    // O bilhete fica ligado ao lead pelo nome + telefone gravados no banco.
+    // (Se um dia o start ficar livre, dá pra usar {codigo} no link que ele vira o nº do bilhete.)
+    telegramUrl: "https://t.me/cabreloa_bot?start=6aada3d9b3aedb61ea0957da",
 
     // Opcional: URL que recebe um POST com { codigo, nome, telefone, rodada } a cada validação
     // (ex: evento do SendPulse / webhook de automação). "" = desligado.
