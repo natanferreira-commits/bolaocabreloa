@@ -14,7 +14,7 @@ Cravou os 10? → R$ 500 no Pix.
 
 ✅ Participar é grátis
 ✅ Leva 2 minutos
-✅ Registra o bilhete aqui no WhatsApp
+✅ Valida o bilhete em 10 segundos
 
 ⏰ Fecha sábado 11h, antes de Brighton x Arsenal.
 
@@ -30,10 +30,12 @@ Fecha às 11h, quando a bola rolar na Inglaterra.
 
 👉 [LINK]
 
-## 3. Resposta automática ao receber o bilhete
+## 3. Primeira mensagem do fluxo no Telegram (quem chega do formulário)
 
-Bilhete registrado ✅
+Bilhete validado ✅
 
-Guarda o número que veio na mensagem. Conferimos tudo depois de Fulham x United (domingo 12h30) e avisamos aqui quem cravou os 10.
+Teu bilhete já tá no sistema com os 10 palpites. Conferimos tudo depois de Fulham x United (domingo 12h30) e avisamos aqui quem cravou.
+
+Obs. técnica: se o link for de bot com `?start={codigo}`, o bot recebe `/start CODIGO`, então dá pra mostrar o número do bilhete na mensagem.
 
 Boa sorte 🍀

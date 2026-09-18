@@ -42,8 +42,15 @@ create table if not exists public.bilhetes (
   sessao           text,
   palpites         jsonb not null,      -- [{ "jogo": "...", "mercado": "...", "escolha": "..." }, ...]
   clicou_whatsapp  boolean not null default false,
-  clicou_em        timestamptz
+  clicou_em        timestamptz,
+  nome             text,                -- preenchidos na validação por formulário
+  telefone         text,
+  validou_em       timestamptz
 );
+-- se a tabela já existia de uma versão anterior:
+alter table public.bilhetes add column if not exists nome text;
+alter table public.bilhetes add column if not exists telefone text;
+alter table public.bilhetes add column if not exists validou_em timestamptz;
 create index if not exists bilhetes_rodada_idx on public.bilhetes (rodada, criado_em desc);
 alter table public.bilhetes enable row level security;
 drop policy if exists "anon insere bilhetes" on public.bilhetes;
@@ -61,6 +68,26 @@ as $$
      set clicou_whatsapp = true,
          clicou_em = coalesce(clicou_em, now())
    where codigo = p_codigo;
+$$;
+
+
+-- 3b) Validação por formulário: grava nome + telefone no bilhete (cria se ainda não existir)
+create or replace function public.validar_bilhete(
+  p_codigo text, p_rodada text, p_palpites jsonb, p_nome text, p_telefone text,
+  p_visitante text default null, p_sessao text default null
+)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into bilhetes (codigo, rodada, palpites, visitante, sessao, nome, telefone, validou_em)
+  values (p_codigo, p_rodada, p_palpites, p_visitante, p_sessao,
+          left(p_nome, 80), left(regexp_replace(p_telefone, '\D', '', 'g'), 15), now())
+  on conflict (codigo) do update
+     set nome       = excluded.nome,
+         telefone   = excluded.telefone,
+         validou_em = coalesce(bilhetes.validou_em, now());
 $$;
 
 
@@ -119,7 +146,7 @@ begin
           count(distinct sessao) filter (where evento = 'page_view')        as visitas,
           count(distinct sessao) filter (where evento = 'cta_start')        as comecou,
           count(distinct sessao) filter (where evento = 'bilhete_view')     as bilhetes,
-          count(distinct sessao) filter (where evento = 'whatsapp_click')   as whatsapp
+          count(distinct sessao) filter (where evento in ('whatsapp_click', 'lead_submit')) as whatsapp
         from eventos
         where (p_rodada is null or rodada = p_rodada)
         group by 1
@@ -130,6 +157,9 @@ begin
     ),
     'bilhetes_whatsapp', (
       select count(*) from bilhetes where clicou_whatsapp and (p_rodada is null or rodada = p_rodada)
+    ),
+    'bilhetes_validados', (
+      select count(*) from bilhetes where validou_em is not null and (p_rodada is null or rodada = p_rodada)
     ),
     'ultimo_evento', (select max(criado_em) from eventos where (p_rodada is null or rodada = p_rodada))
   ) into r;
@@ -158,7 +188,10 @@ begin
     'criado_em', criado_em,
     'rodada', rodada,
     'palpites', palpites,
-    'clicou_whatsapp', clicou_whatsapp
+    'clicou_whatsapp', clicou_whatsapp,
+    'nome', nome,
+    'telefone', telefone,
+    'validou_em', validou_em
   ) order by criado_em desc), '[]'::json)
   into r
   from (
@@ -183,6 +216,8 @@ revoke all on function public._admin_ok(text) from public, anon, authenticated;
 revoke all on function public.admin_resumo(text, text) from public;
 revoke all on function public.admin_bilhetes(text, text) from public;
 revoke all on function public.marcar_whatsapp(text) from public;
+revoke all on function public.validar_bilhete(text, text, jsonb, text, text, text, text) from public;
+grant execute on function public.validar_bilhete(text, text, jsonb, text, text, text, text) to anon, authenticated;
 grant execute on function public.admin_resumo(text, text)   to anon, authenticated;
 grant execute on function public.admin_bilhetes(text, text) to anon, authenticated;
 grant execute on function public.marcar_whatsapp(text)      to anon, authenticated;

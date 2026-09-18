@@ -5,16 +5,38 @@
 // ============================================================
 
 export const config = {
-  // >>> WhatsApp que recebe o bilhete (só dígitos, com DDI+DDD) <<<
-  // Ex: "5511999999999"  — ESTÁ COM PLACEHOLDER, trocar antes de divulgar
-  whatsappNumero: "5500000000000",
+  // ---------- Como o bilhete é validado ----------
+  // "form-telegram" = botão abre um formulário (nome + telefone), salva o lead e manda pro Telegram
+  // "whatsapp"      = botão abre o WhatsApp com a mensagem pronta (modo do bolão do Caumo)
+  resgate: {
+    modo: "form-telegram",
 
-  // Mensagem que chega pré-preenchida no WhatsApp.
-  // Variáveis: {rodada} {codigo} {palpites} (lista numerada, uma por linha)
+    // >>> Link do bot/fluxo no Telegram. {codigo} vira o número do bilhete. <<<
+    // Com bot, use o deep link: "https://t.me/SEU_BOT?start={codigo}" (o bot recebe "/start CODIGO").
+    // ESTÁ COM PLACEHOLDER, trocar antes de divulgar.
+    telegramUrl: "https://t.me/SEU_BOT?start={codigo}",
+
+    // Opcional: URL que recebe um POST com { codigo, nome, telefone, rodada } a cada validação
+    // (ex: evento do SendPulse / webhook de automação). "" = desligado.
+    webhookUrl: "",
+
+    form: {
+      titulo: "Valida teu bilhete",
+      subtitulo: "Leva 10 segundos. Depois é só seguir pro Telegram.",
+      nomeLabel: "Seu nome",
+      telefoneLabel: "Telefone com DDD",
+      botao: "Validar e ir pro Telegram",
+      consentimento: "Ao validar, você aceita receber contato sobre o bolão. +18.",
+    },
+  },
+
+  // Só usados no modo "whatsapp"
+  whatsappNumero: "5500000000000",
   whatsappMensagem: "Quero validar meu palpite #{codigo}",
 
-  // Supabase: guarda os bilhetes e os eventos do funil, e alimenta o /admin.
-  // Vazio = não grava nada e o /admin fica desligado. Rode o supabase.sql ANTES de preencher.
+  // Supabase: guarda os bilhetes, os leads (nome + telefone) e os eventos do funil, e alimenta o /admin.
+  // No modo "form-telegram" ele é OBRIGATÓRIO: sem ele o nome e o telefone não ficam salvos em lugar nenhum.
+  // Rode o supabase.sql ANTES de preencher.
   supabase: {
     url: "",
     anonKey: "",
@@ -89,7 +111,7 @@ export const config = {
     ctaHint: "Grátis. Resultado domingo à tarde.",
     comoFunciona: [
       "Responde as 10 perguntas em 2 minutos",
-      "Registra o bilhete no WhatsApp",
+      "Valida o bilhete com nome e telefone",
       "Cravou os 10, recebe R$ 500 no Pix",
     ],
   },
@@ -178,10 +200,10 @@ export const config = {
     // título que aparece dentro do bilhete
     slipTitulo: "Bolão da Premier League",
     label: "Seu bilhete",
-    titulo: "Registra no WhatsApp pra valer",
-    subtitulo: "Sem registro o bilhete não conta. Aperta o botão que a mensagem já vai com o número do bilhete.",
-    ctaLabel: "Registrar no WhatsApp",
-    ctaHint: "Abre o WhatsApp com o número do seu bilhete",
+    titulo: "Valida o bilhete pra concorrer",
+    subtitulo: "Bilhete sem validação não conta. É nome, telefone e pronto.",
+    ctaLabel: "Validar meu bilhete",
+    ctaHint: "Leva 10 segundos • Grátis",
     refazerLabel: "Refazer palpites",
   },
 
@@ -189,7 +211,7 @@ export const config = {
   aviso: {
     titulo: "Aviso importante",
     linhas: [
-      "Bolão gratuito, sem depósito. Só concorre quem registrar o bilhete no WhatsApp antes do primeiro jogo.",
+      "Bolão gratuito, sem depósito. Só concorre quem validar o bilhete antes do primeiro jogo.",
       "Se mais de um bilhete cravar os 10, o prêmio é sorteado entre eles.",
       "Apostas esportivas envolvem riscos. Nunca aposte o dinheiro do pão, apenas o da manteiga.",
       "Conteúdo destinado a maiores de 18 anos. Jogue com responsabilidade.",

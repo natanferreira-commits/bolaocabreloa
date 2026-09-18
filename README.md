@@ -12,8 +12,7 @@ Tudo que muda entre jogos/afiliados está em [`app/config.js`](app/config.js):
 
 | Campo | O que é |
 | --- | --- |
-| `whatsappNumero` | Número que recebe o bilhete, só dígitos com DDI+DDD (`5511999999999`). **Está com placeholder.** |
-| `whatsappMensagem` | Texto pré-preenchido. Aceita `{rodada}`, `{codigo}`, `{palpites}` (lista numerada com jogo, mercado e escolha). |
+| `resgate` | Como o bilhete é validado. `modo: "form-telegram"` abre um formulário (nome + telefone), grava no Supabase e redireciona pro `telegramUrl` (`{codigo}` vira o nº do bilhete). `modo: "whatsapp"` usa `whatsappNumero`/`whatsappMensagem`. `webhookUrl` opcional recebe um POST a cada validação. |
 | `supabase` | `url` e `anonKey` do projeto. Liga a gravação de bilhetes/eventos e o `/admin`. Vazio = desligado. |
 | `seo` | Título e descrição da página. |
 | `oferta` | `valor` e `regra` do prêmio (bloco dourado da landing e rodapé do bilhete). |

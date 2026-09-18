@@ -88,6 +88,28 @@ export function marcarWhatsapp(codigo) {
   } catch (e) {}
 }
 
+// Validação por formulário: grava nome + telefone no bilhete (cria o bilhete se ainda não existir).
+// Devolve uma Promise pra quem chama poder esperar antes de redirecionar.
+export function validarBilhete(codigo, palpites, nome, telefone) {
+  if (!ativo()) return Promise.resolve(false);
+  return fetch(`${config.supabase.url}/rest/v1/rpc/validar_bilhete`, {
+    method: "POST",
+    keepalive: true,
+    headers: headers(),
+    body: JSON.stringify({
+      p_codigo: codigo,
+      p_rodada: rodadaId(),
+      p_palpites: palpites,
+      p_nome: nome,
+      p_telefone: telefone,
+      p_visitante: visitanteId(),
+      p_sessao: sessaoId(),
+    }),
+  })
+    .then((r) => r.ok)
+    .catch(() => false);
+}
+
 // ---------- leitura (admin) ----------
 export function configurado() {
   const s = config.supabase || {};

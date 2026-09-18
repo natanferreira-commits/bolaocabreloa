@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { config } from "./config";
-import { enviarEvento, marcarWhatsapp, salvarBilhete } from "./lib/sb";
+import { enviarEvento, marcarWhatsapp, salvarBilhete, validarBilhete } from "./lib/sb";
 
 // transforma *palavra* em destaque na cor
 function Highlight({ text }) {
@@ -462,22 +462,162 @@ function Loading({ onDone, onHome }) {
 }
 
 // ============= BILHETE =============
+function TelegramIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+    </svg>
+  );
+}
+
+// (11) 98765-4321
+function mascaraTelefone(v) {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+function FormValidacao({ codigo, palpites, onFechar }) {
+  const { resgate } = config;
+  const f = resgate.form;
+  const [nome, setNome] = useState("");
+  const [tel, setTel] = useState("");
+  const [erro, setErro] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    const esc = (e) => e.key === "Escape" && !enviando && onFechar();
+    window.addEventListener("keydown", esc);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", esc);
+      document.body.style.overflow = "";
+    };
+  }, [enviando, onFechar]);
+
+  async function enviar(e) {
+    e.preventDefault();
+    const n = nome.trim().replace(/\s+/g, " ");
+    const d = tel.replace(/\D/g, "");
+    if (n.length < 2) return setErro("Coloca teu nome.");
+    if (d.length < 10 || d.length > 11) return setErro("Telefone com DDD, 10 ou 11 dígitos.");
+    setErro("");
+    setEnviando(true);
+
+    const telefone = "55" + d;
+    track("lead_submit", { codigo }, "Lead");
+    const salvo = validarBilhete(codigo, palpites, n, telefone);
+
+    if (resgate.webhookUrl) {
+      try {
+        fetch(resgate.webhookUrl, {
+          method: "POST",
+          mode: "no-cors",
+          keepalive: true,
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ codigo, nome: n, telefone, rodada: config.rodada.id || config.rodada.nome }),
+        }).catch(() => {});
+      } catch (er) {}
+    }
+
+    // espera gravar (no máx. 2,5s) antes de sair da página
+    await Promise.race([salvo, new Promise((r) => setTimeout(r, 2500))]);
+    setOk(true);
+    track("telegram_redirect", { codigo });
+    const url = resgate.telegramUrl.replace("{codigo}", codigo);
+    setTimeout(() => {
+      window.location.href = url;
+    }, 700);
+  }
+
+  return (
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="form-titulo" onClick={() => !enviando && onFechar()}>
+      <form className="sheet" onClick={(e) => e.stopPropagation()} onSubmit={enviar} noValidate>
+        <button type="button" className="sheet-fechar" onClick={onFechar} disabled={enviando} aria-label="Fechar">
+          ✕
+        </button>
+        <span className="label">Bilhete #{codigo}</span>
+        <h2 id="form-titulo" className="sheet-titulo">
+          {ok ? "Bilhete validado" : f.titulo}
+        </h2>
+        <p className="lead">{ok ? "Te levando pro Telegram…" : f.subtitulo}</p>
+
+        {!ok && (
+          <>
+            <label className="campo">
+              <span>{f.nomeLabel}</span>
+              <input
+                type="text"
+                name="name"
+                autoComplete="name"
+                value={nome}
+                onChange={(e) => {
+                  setNome(e.target.value);
+                  setErro("");
+                }}
+                placeholder="Como te chamam"
+                maxLength={80}
+                autoFocus
+              />
+            </label>
+            <label className="campo">
+              <span>{f.telefoneLabel}</span>
+              <input
+                type="tel"
+                name="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                value={tel}
+                onChange={(e) => {
+                  setTel(mascaraTelefone(e.target.value));
+                  setErro("");
+                }}
+                placeholder="(11) 98765-4321"
+              />
+            </label>
+            {erro && (
+              <div className="campo-erro" role="alert">
+                ⚠ {erro}
+              </div>
+            )}
+            <button type="submit" className="btn" disabled={enviando}>
+              <TelegramIcon /> {enviando ? "Validando…" : f.botao}
+            </button>
+            <p className="sheet-nota">{f.consentimento}</p>
+          </>
+        )}
+      </form>
+    </div>
+  );
+}
+
 function Bilhete({ escolhas, codigo, onRefazer, onHome }) {
-  const link = montarLinkWhatsApp(escolhas, codigo);
-  const { bilhete, rodada, oferta } = config;
+  const { bilhete, rodada, oferta, resgate } = config;
+  const modoForm = resgate && resgate.modo === "form-telegram";
+  const link = modoForm ? "#" : montarLinkWhatsApp(escolhas, codigo);
+  const [formAberto, setFormAberto] = useState(false);
+  const palpites = useMemo(
+    () => config.palpites.map((pp, i) => ({ jogo: nomeJogo(pp), mercado: pp.mercado, escolha: pp.opcoes[escolhas[i]] })),
+    [escolhas]
+  );
 
   useEffect(() => {
     track("bilhete_view", { codigo }, "ViewContent");
-    salvarBilhete(
-      codigo,
-      config.palpites.map((pp, i) => ({ jogo: nomeJogo(pp), mercado: pp.mercado, escolha: pp.opcoes[escolhas[i]] }))
-    );
+    salvarBilhete(codigo, palpites);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [codigo]);
 
-  function registrar() {
+  function registrarWhatsapp() {
     track("whatsapp_click", { codigo }, "Lead");
     marcarWhatsapp(codigo);
+  }
+
+  function abrirForm() {
+    track("form_open", { codigo });
+    setFormAberto(true);
   }
 
   return (
@@ -534,10 +674,18 @@ function Bilhete({ escolhas, codigo, onRefazer, onHome }) {
       </main>
 
       <StickyCta hint={bilhete.ctaHint}>
-        <a className="btn" href={link} onClick={registrar}>
-          <WhatsIcon /> {bilhete.ctaLabel}
-        </a>
+        {modoForm ? (
+          <button className="btn" onClick={abrirForm}>
+            {bilhete.ctaLabel} <Arrow />
+          </button>
+        ) : (
+          <a className="btn" href={link} onClick={registrarWhatsapp}>
+            <WhatsIcon /> {bilhete.ctaLabel}
+          </a>
+        )}
       </StickyCta>
+
+      {formAberto && <FormValidacao codigo={codigo} palpites={palpites} onFechar={() => setFormAberto(false)} />}
     </div>
   );
 }

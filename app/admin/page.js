@@ -5,6 +5,8 @@ import { config } from "../config";
 import { configurado, rpc } from "../lib/sb";
 import "./admin.css";
 
+const MODO_FORM = config.resgate && config.resgate.modo === "form-telegram";
+const FINAL = MODO_FORM ? "Validaram o bilhete" : "Cliques no WhatsApp";
 const fmt = (n) => (n ?? 0).toLocaleString("pt-BR");
 const pct = (a, b) => (b > 0 ? Math.round((a / b) * 1000) / 10 : 0);
 const fmtPct = (v) => `${String(v).replace(".", ",")}%`;
@@ -141,7 +143,11 @@ function Bilhetes({ bilhetes, rodada }) {
   const linhas = useMemo(() => {
     const q = busca.trim().replace(/^#/, "").toUpperCase();
     return bilhetes
-      .filter((b) => (!q || b.codigo.includes(q)) && (!soWhats || b.clicou_whatsapp))
+      .filter((b) => {
+        const feito = MODO_FORM ? Boolean(b.validou_em) : b.clicou_whatsapp;
+        const alvo = `${b.codigo} ${(b.nome || "").toUpperCase()} ${b.telefone || ""}`;
+        return (!q || alvo.includes(q)) && (!soWhats || feito);
+      })
       .map((b) => {
         let acertos = 0;
         (b.palpites || []).forEach((p, i) => {
@@ -185,10 +191,10 @@ function Bilhetes({ bilhetes, rodada }) {
       </details>
 
       <div className="adm-filtros">
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar pelo # do bilhete" />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={MODO_FORM ? "Buscar por #, nome ou telefone" : "Buscar pelo # do bilhete"} />
         <label className="adm-check">
           <input type="checkbox" checked={soWhats} onChange={(e) => setSoWhats(e.target.checked)} />
-          Só quem clicou no WhatsApp
+          {MODO_FORM ? "Só quem validou" : "Só quem clicou no WhatsApp"}
         </label>
         <span className="adm-nota">
           {fmt(linhas.length)} bilhetes
@@ -202,7 +208,9 @@ function Bilhetes({ bilhetes, rodada }) {
             <tr>
               <th>Bilhete</th>
               <th>Criado</th>
-              <th>WhatsApp</th>
+              {MODO_FORM && <th>Nome</th>}
+              {MODO_FORM && <th>Telefone</th>}
+              <th>{MODO_FORM ? "Validou" : "WhatsApp"}</th>
               <th className="dir">Acertos</th>
               <th />
             </tr>
@@ -220,7 +228,7 @@ function Bilhetes({ bilhetes, rodada }) {
             ))}
             {linhas.length === 0 && (
               <tr>
-                <td colSpan={5} className="adm-vazio">
+                <td colSpan={MODO_FORM ? 7 : 5} className="adm-vazio">
                   Nenhum bilhete encontrado.
                 </td>
               </tr>
@@ -239,7 +247,9 @@ function FragmentoBilhete({ b, aberto, onToggle, gabarito, respondidas }) {
       <tr className={aberto ? "aberta" : ""}>
         <td className="adm-codigo">#{b.codigo}</td>
         <td>{dataHora(b.criado_em)}</td>
-        <td>{b.clicou_whatsapp ? "✓ clicou" : "— não clicou"}</td>
+        {MODO_FORM && <td>{b.nome || "—"}</td>}
+        {MODO_FORM && <td className="adm-num" style={{ textAlign: "left" }}>{b.telefone ? "+" + b.telefone : "—"}</td>}
+        <td>{MODO_FORM ? (b.validou_em ? "✓ " + dataHora(b.validou_em) : "— não validou") : b.clicou_whatsapp ? "✓ clicou" : "— não clicou"}</td>
         <td className="dir adm-num">{respondidas ? `${b.acertos}/${respondidas}` : "—"}</td>
         <td className="dir">
           <button className="adm-link" onClick={onToggle}>
@@ -249,7 +259,7 @@ function FragmentoBilhete({ b, aberto, onToggle, gabarito, respondidas }) {
       </tr>
       {aberto && (
         <tr className="adm-detalhe">
-          <td colSpan={5}>
+          <td colSpan={MODO_FORM ? 7 : 5}>
             <ul>
               {(b.palpites || []).map((p, i) => {
                 const g = gabarito[i];
@@ -347,7 +357,12 @@ export default function Admin() {
     ];
     for (let i = 1; i <= nPalpites; i++) lista.push({ chave: `p${i}`, nome: `Respondeu o palpite ${i}`, valor: sess("palpite", i) });
     lista.push({ chave: "bil", nome: "Chegou no bilhete", valor: sess("bilhete_view") });
-    lista.push({ chave: "wa", nome: "Clicou no WhatsApp", valor: sess("whatsapp_click") });
+    if (MODO_FORM) {
+      lista.push({ chave: "fo", nome: "Abriu o formulário", valor: sess("form_open") });
+      lista.push({ chave: "ls", nome: "Validou (nome + telefone)", valor: sess("lead_submit") });
+    } else {
+      lista.push({ chave: "wa", nome: "Clicou no WhatsApp", valor: sess("whatsapp_click") });
+    }
     return lista;
   }, [resumo, rodada]);
 
@@ -419,13 +434,13 @@ export default function Admin() {
       {erro && <div className="adm-erro">{erro}</div>}
 
       <section className="adm-tiles">
-        <Tile destaque label="Cliques no WhatsApp" valor={fmt(whats)} sub={`${fmtPct(pct(whats, visitas))} de quem abriu a página`} />
+        <Tile destaque label={FINAL} valor={fmt(whats)} sub={`${fmtPct(pct(whats, visitas))} de quem abriu a página`} />
         <Tile label="Visitantes únicos" valor={fmt(resumo.visitantes)} sub={`${fmt(visitas)} sessões`} />
         <Tile label="Começaram o bolão" valor={fmt(comecou)} sub={`${fmtPct(pct(comecou, visitas))} das sessões`} />
         <Tile
           label="Bilhetes gerados"
           valor={fmt(resumo.bilhetes_total)}
-          sub={`${fmt(resumo.bilhetes_whatsapp)} com clique no WhatsApp`}
+          sub={MODO_FORM ? `${fmt(resumo.bilhetes_validados)} validados com nome e telefone` : `${fmt(resumo.bilhetes_whatsapp)} com clique no WhatsApp`}
         />
       </section>
 
@@ -445,8 +460,8 @@ export default function Admin() {
                 <th className="dir">Sessões</th>
                 <th className="dir">Começaram</th>
                 <th className="dir">Bilhetes</th>
-                <th className="dir">WhatsApp</th>
-                <th className="dir">Visita → WhatsApp</th>
+                <th className="dir">{MODO_FORM ? "Validaram" : "WhatsApp"}</th>
+                <th className="dir">{MODO_FORM ? "Visita → validou" : "Visita → WhatsApp"}</th>
               </tr>
             </thead>
             <tbody>
