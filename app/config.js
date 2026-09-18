@@ -39,8 +39,8 @@ export const config = {
   // No modo "form-telegram" ele é OBRIGATÓRIO: sem ele o nome e o telefone não ficam salvos em lugar nenhum.
   // Rode o supabase.sql ANTES de preencher.
   supabase: {
-    url: "",
-    anonKey: "",
+    url: "https://fzskyuctycbuhctitvdz.supabase.co",
+    anonKey: "sb_publishable_qSBpAkbg2OqhVglY2Sq5mA_b9hvfNk_",
   },
 
   marca: "Cabreloa",
